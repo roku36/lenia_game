@@ -4,6 +4,7 @@
 //! is rendered to the screen.
 
 use bevy::{
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
@@ -33,12 +34,22 @@ fn main() {
                 ..default()
             }),
             GameOfLifeComputePlugin,
+            FrameTimeDiagnosticsPlugin,
         ))
         .add_systems(Startup, setup)
+        .add_systems(Update, ui_system)
         .run();
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    commands.spawn(TextBundle::from_section(
+        "",
+        TextStyle {
+            font_size: 30.,
+            ..default()
+        },
+    ));
+
     let mut image = Image::new_fill(
         Extent3d {
             width: SIZE.0,
@@ -249,4 +260,17 @@ impl render_graph::Node for GameOfLifeNode {
 
         Ok(())
     }
+}
+
+fn ui_system(mut query: Query<&mut Text>, diag: Res<DiagnosticsStore>) {
+    let mut text = query.single_mut();
+
+    let Some(fps) = diag
+        .get(FrameTimeDiagnosticsPlugin::FPS)
+        .and_then(|fps| fps.smoothed())
+    else {
+        return;
+    };
+
+    text.sections[0].value = format!("FPS: {:.0}", fps,);
 }
