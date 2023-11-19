@@ -15,6 +15,10 @@ fn bell(x: f32, mu: f32, sigma: f32) -> f32 {
     // bell curve
     return exp(-((x - mu) * (x - mu)) / (2.0 * sigma * sigma));
 }
+fn growth(U: f32, m: f32, s: f32) -> f32 {
+    let g = bell(U, m, s) * 2.0 - 1.0;
+    return g;
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
@@ -51,8 +55,9 @@ fn compute_new_state(location: vec2<i32>) -> f32 {
     }
 
     let avg = sum / total;
-    let growth = bell(avg, mu, sigma) * 2.0 - 1.0;
-    let result = saturate(current_status + 0.1 * growth);
+    // let g = bell(avg, mu, sigma) * 2.0 - 1.0;
+    let g = growth(avg, mu, sigma);
+    let result = saturate(current_status + 0.1 * g);
     return result;
 }
 
