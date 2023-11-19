@@ -1,29 +1,28 @@
 @group(0) @binding(0) var texture: texture_storage_2d<rgba8unorm, read_write>;
 
-const ring_radius = 1;
+const ring_radius = 10;
+const mu = 0.14;     // growth center
+const sigma = 0.014; // growth width
+const rho = 0.5;     // kernel center
+const omega = 0.15;  // kernel width
 
-fn hash(value: u32) -> u32 {
-    var state = value;
-    state = state ^ 2747636419u;
-    state = state * 2654435769u;
-    state = state ^ state >> 16u;
-    state = state * 2654435769u;
-    state = state ^ state >> 16u;
-    state = state * 2654435769u;
-    return state;
+fn hash(p: vec2<f32>) -> f32 {
+    let p2 = dot(p, vec2<f32>(127.1, 311.7));
+    return -1.0 + 2.0 * fract(sin(p2) * 43758.5453123);
 }
 
-fn randomFloat(value: u32) -> f32 {
-    return f32(hash(value)) / 4294967295.0;
+fn bell(x: f32, mu: f32, sigma: f32) -> f32 {
+    // bell curve
+    return exp(-((x - mu) * (x - mu)) / (2.0 * sigma * sigma));
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
-    let randomNumber = randomFloat(invocation_id.y * num_workgroups.x + invocation_id.x);
+    // let randomNumber = randomFloat(invocation_id.y * num_workgroups.x + invocation_id.x);
+    let randomNumber = hash(vec2<f32>(invocation_id.xy));
     var color = vec4<f32>(0.0);
-    // if invocation index is less than 300, set the color to the random number
-    if (i32(invocation_id.x) < 300) {
+    if i32(invocation_id.x) < 100 && i32(invocation_id.y) < 300 {
         color = vec4<f32>(randomNumber);
     }
     textureStore(texture, location, color);
@@ -34,28 +33,34 @@ fn get_value(location: vec2<i32>, offset_x: i32, offset_y: i32) -> f32 {
     return value.x;
 }
 
-fn compute_weighted_sum(location: vec2<i32>) -> f32 {
+fn compute_new_state(location: vec2<i32>) -> f32 {
+    var current_status = get_value(location, 0, 0);
     var sum: f32 = 0.0;
+    var total: f32 = 0.0;
 
-    for (var i = -ring_radius; i <= ring_radius; i = i + 1) {
-        for (var j = -ring_radius; j <= ring_radius; j = j + 1) {
-            // weight according to the euclidean distance from center
+    for (var i = -ring_radius; i <= ring_radius; i++) {
+        for (var j = -ring_radius; j <= ring_radius; j++) {
+            let cell_val = get_value(location, i, j);
             let i_f = f32(i);
             let j_f = f32(j);
-            let distance = sqrt((i_f * i_f) + (j_f * j_f));
-            // let weight = 1.0 - f32(distance) / 3.0;
-            let weight = f32(ring_radius) - distance;
-            sum = sum + weight * get_value(location, i, j);
+            let r = sqrt((i_f * i_f) + (j_f * j_f)) / f32(ring_radius);
+            let weight = bell(r, rho, omega);
+            sum += cell_val * weight;
+            total += weight;
         }
     }
-    return sum;
+
+    let avg = sum / total;
+    let growth = bell(avg, mu, sigma) * 2.0 - 1.0;
+    let result = saturate(current_status + 0.1 * growth);
+    return result;
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
-    let weighted_sum = compute_weighted_sum(location);
-    let new_value = weighted_sum; // 9.0;  // normalize the weighted sum
+    let new_state = compute_new_state(location);
+    let new_value = vec4<f32>(new_state);
 
     storageBarrier();
 

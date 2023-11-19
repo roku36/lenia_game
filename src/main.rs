@@ -18,7 +18,7 @@ use bevy::{
 };
 use std::borrow::Cow;
 
-const SIZE: (u32, u32) = (1280, 720);
+const SIZE: (u32, u32) = (840, 472);
 const WORKGROUP_SIZE: u32 = 8;
 
 fn main() {
@@ -46,6 +46,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         "",
         TextStyle {
             font_size: 30.,
+            color: Color::CYAN,
             ..default()
         },
     ));
