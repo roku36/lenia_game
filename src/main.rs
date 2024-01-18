@@ -1,8 +1,3 @@
-//! A compute shader that simulates Conway's Game of Life.
-//!
-//! Compute shaders use the GPU for computing arbitrary information, that may be independent of what
-//! is rendered to the screen.
-
 use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
@@ -18,7 +13,7 @@ use bevy::{
 };
 use std::borrow::Cow;
 
-const SIZE: (u32, u32) = (840, 472);
+const SIZE: (u32, u32) = (600, 400);
 const WORKGROUP_SIZE: u32 = 8;
 
 fn main() {
@@ -33,7 +28,7 @@ fn main() {
                 }),
                 ..default()
             }),
-            GameOfLifeComputePlugin,
+            LeniaComputePlugin,
             FrameTimeDiagnosticsPlugin,
         ))
         .add_systems(Startup, setup)
@@ -75,16 +70,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     });
     commands.spawn(Camera2dBundle::default());
 
-    commands.insert_resource(GameOfLifeImage(image));
+    commands.insert_resource(LeniaImage(image));
 }
 
-pub struct GameOfLifeComputePlugin;
+pub struct LeniaComputePlugin;
 
-impl Plugin for GameOfLifeComputePlugin {
+impl Plugin for LeniaComputePlugin {
     fn build(&self, app: &mut App) {
-        // Extract the game of life image resource from the main world into the render world
+        // Extract the lenia image resource from the main world into the render world
         // for operation on by the compute shader and display on the sprite.
-        app.add_plugins(ExtractResourcePlugin::<GameOfLifeImage>::default());
+        app.add_plugins(ExtractResourcePlugin::<LeniaImage>::default());
         let render_app = app.sub_app_mut(RenderApp);
         render_app.add_systems(
             Render,
@@ -92,49 +87,49 @@ impl Plugin for GameOfLifeComputePlugin {
         );
 
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
-        render_graph.add_node("game_of_life", GameOfLifeNode::default());
+        render_graph.add_node("lenia", LeniaNode::default());
         render_graph.add_node_edge(
-            "game_of_life",
+            "lenia",
             bevy::render::main_graph::node::CAMERA_DRIVER,
         );
     }
 
     fn finish(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
-        render_app.init_resource::<GameOfLifePipeline>();
+        render_app.init_resource::<LeniaPipeline>();
     }
 }
 
 #[derive(Resource, Clone, Deref, ExtractResource)]
-struct GameOfLifeImage(Handle<Image>);
+struct LeniaImage(Handle<Image>);
 
 #[derive(Resource)]
-struct GameOfLifeImageBindGroup(BindGroup);
+struct LeniaImageBindGroup(BindGroup);
 
 fn prepare_bind_group(
     mut commands: Commands,
-    pipeline: Res<GameOfLifePipeline>,
+    pipeline: Res<LeniaPipeline>,
     gpu_images: Res<RenderAssets<Image>>,
-    game_of_life_image: Res<GameOfLifeImage>,
+    lenia_image: Res<LeniaImage>,
     render_device: Res<RenderDevice>,
 ) {
-    let view = gpu_images.get(&game_of_life_image.0).unwrap();
+    let view = gpu_images.get(&lenia_image.0).unwrap();
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.texture_bind_group_layout,
         &BindGroupEntries::single(&view.texture_view),
     );
-    commands.insert_resource(GameOfLifeImageBindGroup(bind_group));
+    commands.insert_resource(LeniaImageBindGroup(bind_group));
 }
 
 #[derive(Resource)]
-pub struct GameOfLifePipeline {
+pub struct LeniaPipeline {
     texture_bind_group_layout: BindGroupLayout,
     init_pipeline: CachedComputePipelineId,
     update_pipeline: CachedComputePipelineId,
 }
 
-impl FromWorld for GameOfLifePipeline {
+impl FromWorld for LeniaPipeline {
     fn from_world(world: &mut World) -> Self {
         let texture_bind_group_layout =
             world
@@ -154,7 +149,7 @@ impl FromWorld for GameOfLifePipeline {
                 });
         let shader = world
             .resource::<AssetServer>()
-            .load("shaders/game_of_life.wgsl");
+            .load("shaders/lenia.wgsl");
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
@@ -173,7 +168,7 @@ impl FromWorld for GameOfLifePipeline {
             entry_point: Cow::from("update"),
         });
 
-        GameOfLifePipeline {
+        LeniaPipeline {
             texture_bind_group_layout,
             init_pipeline,
             update_pipeline,
@@ -181,46 +176,46 @@ impl FromWorld for GameOfLifePipeline {
     }
 }
 
-enum GameOfLifeState {
+enum LeniaState {
     Loading,
     Init,
     Update,
 }
 
-struct GameOfLifeNode {
-    state: GameOfLifeState,
+struct LeniaNode {
+    state: LeniaState,
 }
 
-impl Default for GameOfLifeNode {
+impl Default for LeniaNode {
     fn default() -> Self {
         Self {
-            state: GameOfLifeState::Loading,
+            state: LeniaState::Loading,
         }
     }
 }
 
-impl render_graph::Node for GameOfLifeNode {
+impl render_graph::Node for LeniaNode {
     fn update(&mut self, world: &mut World) {
-        let pipeline = world.resource::<GameOfLifePipeline>();
+        let pipeline = world.resource::<LeniaPipeline>();
         let pipeline_cache = world.resource::<PipelineCache>();
 
         // if the corresponding pipeline has loaded, transition to the next stage
         match self.state {
-            GameOfLifeState::Loading => {
+            LeniaState::Loading => {
                 if let CachedPipelineState::Ok(_) =
                     pipeline_cache.get_compute_pipeline_state(pipeline.init_pipeline)
                 {
-                    self.state = GameOfLifeState::Init;
+                    self.state = LeniaState::Init;
                 }
             }
-            GameOfLifeState::Init => {
+            LeniaState::Init => {
                 if let CachedPipelineState::Ok(_) =
                     pipeline_cache.get_compute_pipeline_state(pipeline.update_pipeline)
                 {
-                    self.state = GameOfLifeState::Update;
+                    self.state = LeniaState::Update;
                 }
             }
-            GameOfLifeState::Update => {}
+            LeniaState::Update => {}
         }
     }
 
@@ -230,9 +225,9 @@ impl render_graph::Node for GameOfLifeNode {
         render_context: &mut RenderContext,
         world: &World,
     ) -> Result<(), render_graph::NodeRunError> {
-        let texture_bind_group = &world.resource::<GameOfLifeImageBindGroup>().0;
+        let texture_bind_group = &world.resource::<LeniaImageBindGroup>().0;
         let pipeline_cache = world.resource::<PipelineCache>();
-        let pipeline = world.resource::<GameOfLifePipeline>();
+        let pipeline = world.resource::<LeniaPipeline>();
 
         let mut pass = render_context
             .command_encoder()
@@ -242,15 +237,15 @@ impl render_graph::Node for GameOfLifeNode {
 
         // select the pipeline based on the current state
         match self.state {
-            GameOfLifeState::Loading => {}
-            GameOfLifeState::Init => {
+            LeniaState::Loading => {}
+            LeniaState::Init => {
                 let init_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.init_pipeline)
                     .unwrap();
                 pass.set_pipeline(init_pipeline);
                 pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
-            GameOfLifeState::Update => {
+            LeniaState::Update => {
                 let update_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.update_pipeline)
                     .unwrap();
