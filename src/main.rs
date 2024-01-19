@@ -9,7 +9,7 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
         Render, RenderApp, RenderSet,
     },
-    window::WindowPlugin,
+    window::{Window, WindowPlugin, CompositeAlphaMode},
 };
 use std::borrow::Cow;
 
@@ -18,18 +18,21 @@ const WORKGROUP_SIZE: u32 = 8;
 
 fn main() {
     App::new()
-        .insert_resource(ClearColor(Color::BLACK))
+        .insert_resource(ClearColor(Color::NONE))
         .add_plugins((
-            DefaultPlugins.set(WindowPlugin {
-                primary_window: Some(Window {
-                    // uncomment for unthrottled FPS
-                    // present_mode: bevy::window::PresentMode::AutoNoVsync,
+                DefaultPlugins.set(WindowPlugin {
+                    primary_window: Some(Window {
+                        transparent: true,
+                        composite_alpha_mode: CompositeAlphaMode::PostMultiplied,
+                        decorations: false,
+                        // uncomment for unthrottled FPS
+                        // present_mode: bevy::window::PresentMode::AutoNoVsync,
+                        ..default()
+                    }),
                     ..default()
                 }),
-                ..default()
-            }),
-            LeniaComputePlugin,
-            FrameTimeDiagnosticsPlugin,
+                LeniaComputePlugin,
+                FrameTimeDiagnosticsPlugin,
         ))
         .add_systems(Startup, setup)
         .add_systems(Update, ui_system)
@@ -38,12 +41,12 @@ fn main() {
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn(TextBundle::from_section(
-        "",
-        TextStyle {
-            font_size: 30.,
-            color: Color::CYAN,
-            ..default()
-        },
+            "",
+            TextStyle {
+                font_size: 30.,
+                color: Color::CYAN,
+                ..default()
+            },
     ));
 
     let mut image = Image::new_fill(
@@ -127,29 +130,33 @@ pub struct LeniaPipeline {
     texture_bind_group_layout: BindGroupLayout,
     init_pipeline: CachedComputePipelineId,
     update_pipeline: CachedComputePipelineId,
+    // render_pipeline: CachedComputePipelineId,
 }
 
 impl FromWorld for LeniaPipeline {
     fn from_world(world: &mut World) -> Self {
         let texture_bind_group_layout =
             world
-                .resource::<RenderDevice>()
-                .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                    label: None,
-                    entries: &[BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStages::COMPUTE,
-                        ty: BindingType::StorageTexture {
-                            access: StorageTextureAccess::ReadWrite,
-                            format: TextureFormat::Rgba8Unorm,
-                            view_dimension: TextureViewDimension::D2,
-                        },
-                        count: None,
-                    }],
-                });
-        let shader = world
+            .resource::<RenderDevice>()
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: None,
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::StorageTexture {
+                        access: StorageTextureAccess::ReadWrite,
+                        format: TextureFormat::Rgba8Unorm,
+                        view_dimension: TextureViewDimension::D2,
+                    },
+                    count: None,
+                }],
+            });
+        let shader: Handle<Shader> = world
             .resource::<AssetServer>()
             .load("shaders/lenia.wgsl");
+        // let color_shader: Handle<Shader> = world
+        //     .resource::<AssetServer>()
+        //     .load("shaders/gradient.wgsl");
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
@@ -167,11 +174,20 @@ impl FromWorld for LeniaPipeline {
             shader_defs: vec![],
             entry_point: Cow::from("update"),
         });
+        // let render_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+        //     label: None,
+        //     layout: vec![texture_bind_group_layout.clone()],
+        //     push_constant_ranges: Vec::new(),
+        //     shader: color_shader,
+        //     shader_defs: vec![],
+        //     entry_point: Cow::from("render"),
+        // });
 
         LeniaPipeline {
             texture_bind_group_layout,
             init_pipeline,
             update_pipeline,
+            // render_pipeline,
         }
     }
 }
@@ -264,9 +280,9 @@ fn ui_system(mut query: Query<&mut Text>, diag: Res<DiagnosticsStore>) {
     let Some(fps) = diag
         .get(FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|fps| fps.smoothed())
-    else {
-        return;
-    };
+        else {
+            return;
+        };
 
-    text.sections[0].value = format!("FPS: {:.0}", fps,);
+        text.sections[0].value = format!("FPS: {:.0}", fps,);
 }
