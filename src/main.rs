@@ -1,5 +1,5 @@
 use bevy::{
-    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
+    // diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
@@ -9,11 +9,15 @@ use bevy::{
         renderer::{RenderContext, RenderDevice},
         Render, RenderApp, RenderSet,
     },
-    window::{Window, WindowPlugin, CompositeAlphaMode},
+    window::{Window, WindowPlugin},
+    // window::CompositeAlphaMode,
 };
 use std::borrow::Cow;
+mod ui;
 
-const SIZE: (u32, u32) = (600, 400);
+use crate::ui::fps::FpsPlugin;
+
+const SIZE: (u32, u32) = (800, 600);
 const WORKGROUP_SIZE: u32 = 8;
 
 fn main() {
@@ -22,33 +26,23 @@ fn main() {
         .add_plugins((
                 DefaultPlugins.set(WindowPlugin {
                     primary_window: Some(Window {
-                        transparent: true,
-                        composite_alpha_mode: CompositeAlphaMode::PostMultiplied,
-                        decorations: false,
+                        // transparent: true,
+                        // composite_alpha_mode: CompositeAlphaMode::PostMultiplied,
+                        // decorations: false,
                         // uncomment for unthrottled FPS
                         // present_mode: bevy::window::PresentMode::AutoNoVsync,
                         ..default()
                     }),
                     ..default()
                 }),
+                FpsPlugin,
                 LeniaComputePlugin,
-                FrameTimeDiagnosticsPlugin,
         ))
         .add_systems(Startup, setup)
-        .add_systems(Update, ui_system)
         .run();
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
-    commands.spawn(TextBundle::from_section(
-            "",
-            TextStyle {
-                font_size: 30.,
-                color: Color::CYAN,
-                ..default()
-            },
-    ));
-
     let mut image = Image::new_fill(
         Extent3d {
             width: SIZE.0,
@@ -136,20 +130,32 @@ pub struct LeniaPipeline {
 impl FromWorld for LeniaPipeline {
     fn from_world(world: &mut World) -> Self {
         let texture_bind_group_layout =
-            world
+        world
             .resource::<RenderDevice>()
             .create_bind_group_layout(&BindGroupLayoutDescriptor {
                 label: None,
-                entries: &[BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: ShaderStages::COMPUTE,
-                    ty: BindingType::StorageTexture {
-                        access: StorageTextureAccess::ReadWrite,
-                        format: TextureFormat::Rgba8Unorm,
-                        view_dimension: TextureViewDimension::D2,
+                entries: &[
+                    BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: ShaderStages::COMPUTE,
+                        ty: BindingType::StorageTexture {
+                            access: StorageTextureAccess::ReadWrite,
+                            format: TextureFormat::Rgba8Unorm,
+                            view_dimension: TextureViewDimension::D2,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    // BindGroupLayoutEntry {
+                    //     binding: 1,
+                    //     visibility: ShaderStages::FRAGMENT,
+                    //     ty: BindingType::StorageTexture {
+                    //         access: StorageTextureAccess::ReadOnly,
+                    //         format: TextureFormat::Rgba8Unorm,
+                    //         view_dimension: TextureViewDimension::D2,
+                    //     },
+                    //     count: None,
+                    // },
+                ],
             });
         let shader: Handle<Shader> = world
             .resource::<AssetServer>()
@@ -272,17 +278,4 @@ impl render_graph::Node for LeniaNode {
 
         Ok(())
     }
-}
-
-fn ui_system(mut query: Query<&mut Text>, diag: Res<DiagnosticsStore>) {
-    let mut text = query.single_mut();
-
-    let Some(fps) = diag
-        .get(FrameTimeDiagnosticsPlugin::FPS)
-        .and_then(|fps| fps.smoothed())
-        else {
-            return;
-        };
-
-        text.sections[0].value = format!("FPS: {:.0}", fps,);
 }

@@ -1,6 +1,6 @@
 @group(0) @binding(0) var texture: texture_storage_2d<rgba8unorm, read_write>;
 
-const ring_radius = 30;
+const ring_radius = 20;
 const mu = 0.14;     // growth center
 const sigma = 0.014; // growth width
 const rho = 0.5;     // kernel center
@@ -83,3 +83,9 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // let color = palette(clamp(new_value.x, 0.0, 1.0));
     textureStore(texture, location, color);
 }
+
+// @fragment
+// fn fs_main() -> @location(0) vec4<f32> {
+//     // let color = textureLoad(texture, i32(gl_FragCoord.xy));
+//     return vec4<f32>(color.rgb, 1.0);
+// }
