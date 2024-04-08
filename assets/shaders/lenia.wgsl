@@ -1,6 +1,6 @@
 @group(0) @binding(0) var texture: texture_storage_2d<rgba8unorm, read_write>;
 
-const ring_radius = 20;
+const ring_radius = 15;
 const mu = 0.14;     // growth center
 const sigma = 0.014; // growth width
 const rho = 0.5;     // kernel center

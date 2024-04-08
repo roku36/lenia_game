@@ -17,7 +17,7 @@ mod ui;
 
 use crate::ui::fps::FpsPlugin;
 
-const SIZE: (u32, u32) = (800, 600);
+const SIZE: (u32, u32) = (600, 400);
 const WORKGROUP_SIZE: u32 = 8;
 
 fn main() {
