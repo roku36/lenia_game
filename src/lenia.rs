@@ -2,18 +2,23 @@ use bevy::{
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
+        render_asset::RenderAssetUsages,
         render_asset::RenderAssets,
-        render_graph::{self, RenderGraph},
+        render_graph::{self, RenderGraph, RenderLabel},
         render_resource::*,
         renderer::{RenderContext, RenderDevice},
         Render, RenderApp, RenderSet,
     },
 };
-use std::borrow::Cow;
-pub struct LeniaComputePlugin;
 
 pub const SIZE: (u32, u32) = (600, 400);
 const WORKGROUP_SIZE: u32 = 8;
+use std::borrow::Cow;
+
+pub struct LeniaComputePlugin;
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+struct LeniaLabel;
 
 impl Plugin for LeniaComputePlugin {
     fn build(&self, app: &mut App) {
@@ -30,10 +35,8 @@ impl Plugin for LeniaComputePlugin {
         );
 
         let mut render_graph = render_app.world.resource_mut::<RenderGraph>();
-        render_graph.add_node("lenia", LeniaNode::default());
-        render_graph.add_node_edge(
-            "lenia",
-            bevy::render::main_graph::node::CAMERA_DRIVER,
+        render_graph.add_node(LeniaLabel, LeniaNode::default());
+        render_graph.add_node_edge(LeniaLabel, bevy::render::graph::CameraDriverLabel,
         );
     }
 
@@ -53,6 +56,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         TextureDimension::D2,
         &[0, 0, 0, 255],
         TextureFormat::Rgba8Unorm,
+        RenderAssetUsages::RENDER_WORLD,
     );
     image.texture_descriptor.usage =
         TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
@@ -67,13 +71,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         ..default()
     });
     commands.spawn(Camera2dBundle::default());
-    commands.insert_resource(LeniaImage(image));
+    commands.insert_resource(LeniaImage{ texture: image });
 }
 
 
 
-#[derive(Resource, Clone, Deref, ExtractResource)]
-pub struct LeniaImage(pub Handle<Image>);
+#[derive(Resource, Clone, Deref, ExtractResource, AsBindGroup)]
+struct LeniaImage {
+    #[storage_texture(0, image_format = Rgba8Unorm, access = ReadWrite)]
+    texture: Handle<Image>,
+}
 
 #[derive(Resource)]
 struct LeniaImageBindGroup(BindGroup);
@@ -85,7 +92,7 @@ fn prepare_bind_group(
     lenia_image: Res<LeniaImage>,
     render_device: Res<RenderDevice>,
 ) {
-    let view = gpu_images.get(&lenia_image.0).unwrap();
+    let view = gpu_images.get(&lenia_image.texture).unwrap();
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.texture_bind_group_layout,
@@ -103,41 +110,12 @@ pub struct LeniaPipeline {
 }
 
 impl FromWorld for LeniaPipeline {
-    fn from_world(world: &mut World) -> Self {
-        let texture_bind_group_layout =
-        world
-            .resource::<RenderDevice>()
-            .create_bind_group_layout(&BindGroupLayoutDescriptor {
-                label: None,
-                entries: &[
-                    BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: ShaderStages::COMPUTE,
-                        ty: BindingType::StorageTexture {
-                            access: StorageTextureAccess::ReadWrite,
-                            format: TextureFormat::Rgba8Unorm,
-                            view_dimension: TextureViewDimension::D2,
-                        },
-                        count: None,
-                    },
-                    // BindGroupLayoutEntry {
-                    //     binding: 1,
-                    //     visibility: ShaderStages::FRAGMENT,
-                    //     ty: BindingType::StorageTexture {
-                    //         access: StorageTextureAccess::ReadOnly,
-                    //         format: TextureFormat::Rgba8Unorm,
-                    //         view_dimension: TextureViewDimension::D2,
-                    //     },
-                    //     count: None,
-                    // },
-                ],
-            });
-        let shader: Handle<Shader> = world
+fn from_world(world: &mut World) -> Self {
+        let render_device = world.resource::<RenderDevice>();
+        let texture_bind_group_layout = LeniaImage::bind_group_layout(render_device);
+        let shader = world
             .resource::<AssetServer>()
             .load("shaders/lenia.compute.wgsl");
-        // let color_shader: Handle<Shader> = world
-        //     .resource::<AssetServer>()
-        //     .load("shaders/gradient.wgsl");
         let pipeline_cache = world.resource::<PipelineCache>();
         let init_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
@@ -155,20 +133,11 @@ impl FromWorld for LeniaPipeline {
             shader_defs: vec![],
             entry_point: Cow::from("update"),
         });
-        // let render_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-        //     label: None,
-        //     layout: vec![texture_bind_group_layout.clone()],
-        //     push_constant_ranges: Vec::new(),
-        //     shader: color_shader,
-        //     shader_defs: vec![],
-        //     entry_point: Cow::from("render"),
-        // });
 
         LeniaPipeline {
             texture_bind_group_layout,
             init_pipeline,
             update_pipeline,
-            // render_pipeline,
         }
     }
 }
