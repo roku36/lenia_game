@@ -19,9 +19,12 @@ impl Plugin for LeniaComputePlugin {
     fn build(&self, app: &mut App) {
         // Extract the lenia image resource from the main world into the render world
         // for operation on by the compute shader and display on the sprite.
-        app.add_plugins(ExtractResourcePlugin::<LeniaImage>::default());
+        app
+            .add_systems(Startup, setup)
+            .add_plugins(ExtractResourcePlugin::<LeniaImage>::default());
         let render_app = app.sub_app_mut(RenderApp);
-        render_app.add_systems(
+        render_app
+            .add_systems(
             Render,
             prepare_bind_group.in_set(RenderSet::PrepareBindGroups),
         );
@@ -39,6 +42,35 @@ impl Plugin for LeniaComputePlugin {
         render_app.init_resource::<LeniaPipeline>();
     }
 }
+
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+    let mut image = Image::new_fill(
+        Extent3d {
+            width: SIZE.0,
+            height: SIZE.1,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[0, 0, 0, 255],
+        TextureFormat::Rgba8Unorm,
+    );
+    image.texture_descriptor.usage =
+        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
+    let image = images.add(image);
+
+    commands.spawn(SpriteBundle {
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(SIZE.0 as f32, SIZE.1 as f32)),
+            ..default()
+        },
+        texture: image.clone(),
+        ..default()
+    });
+    commands.spawn(Camera2dBundle::default());
+    commands.insert_resource(LeniaImage(image));
+}
+
+
 
 #[derive(Resource, Clone, Deref, ExtractResource)]
 pub struct LeniaImage(pub Handle<Image>);
