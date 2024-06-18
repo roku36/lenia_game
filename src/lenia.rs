@@ -75,7 +75,6 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 }
 
 
-
 #[derive(Resource, Clone, Deref, ExtractResource, AsBindGroup)]
 struct LeniaImage {
     #[storage_texture(0, image_format = Rgba8Unorm, access = ReadWrite)]
@@ -106,9 +105,10 @@ pub struct LeniaPipeline {
     texture_bind_group_layout: BindGroupLayout,
     init_pipeline: CachedComputePipelineId,
     update_pipeline: CachedComputePipelineId,
-    // render_pipeline: CachedComputePipelineId,
+    // render_pipeline: CachedRenderPipelineId,
 }
 
+// パイプラインの初期化を定義
 impl FromWorld for LeniaPipeline {
 fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
@@ -134,10 +134,12 @@ fn from_world(world: &mut World) -> Self {
             entry_point: Cow::from("update"),
         });
 
+        // 同じ名前の型なので省略
         LeniaPipeline {
             texture_bind_group_layout,
             init_pipeline,
             update_pipeline,
+            // render_pipeline,
         }
     }
 }

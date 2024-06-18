@@ -20,17 +20,6 @@ fn growth(U: f32, m: f32, s: f32) -> f32 {
     return g;
 }
 
-fn palette(t: f32) -> vec4<f32> {
-    // [[0.500 0.500 0.500] [3.138 0.500 0.500] [-0.050 1.500 2.050] [-0.725 0.500 0.500]]
-    let a: vec3<f32> = vec3<f32>(0.500, 0.500, 0.500);
-    let b: vec3<f32> = vec3<f32>(3.138, 0.500, 0.500);
-    let c: vec3<f32> = vec3<f32>(-0.050, 1.500, 2.050);
-    let d: vec3<f32> = vec3<f32>(-0.725, 0.500, 0.500);
-
-    let color: vec3<f32> = a + b + cos( 6.28318530718 * (c * t + d));
-    return vec4<f32>(color, t);
-}
-
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
@@ -66,8 +55,9 @@ fn compute_new_state(location: vec2<i32>) -> f32 {
     }
 
     let avg = sum / total;
-    // let g = bell(avg, mu, sigma) * 2.0 - 1.0;
-    let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
+    let g = bell(avg, mu, sigma) * 2.0 - 1.0;
+    // change kernel depending on current_status
+    // let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
     let result = saturate(current_status + 0.1 * g);
     return result;
 }
@@ -80,7 +70,6 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
 
     storageBarrier();
     let color = vec4<f32>(new_value);
-    // let color = palette(clamp(new_value.x, 0.0, 1.0));
     textureStore(texture, location, color);
 }
 
