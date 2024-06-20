@@ -6,7 +6,8 @@
 const RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
 const GREEN = vec4<f32>(0.0, 1.0, 0.0, 1.0);
 const BLUE = vec4<f32>(0.0, 0.0, 1.0, 1.0);
-const rho = 0.99;
+// const rho = 0.40;
+const rho = 1.5;
 const RESOLUTION = vec2<i32>(600, 400);
 
 
@@ -14,9 +15,8 @@ const RESOLUTION = vec2<i32>(600, 400);
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
     var color = vec4<f32>(0.0);
-    // if i32(invocation_id.x) < 100 && i32(invocation_id.y) < 300 {
-    //     color = vec4<f32>(1.0, 1.0, 1.0, 1.0);
-    // }
+    var velocity_x = vec4<f32>(0.0);
+    var velocity_y = vec4<f32>(0.0);
 
     // make color pattern
     let colorArea = location.x % 300;
@@ -28,8 +28,6 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
         color = BLUE;
     }
 
-    var velocity_x = vec4<f32>(0.1);
-    var velocity_y = vec4<f32>(0.0);
     if i32(location.x) < 300 {
         velocity_y = vec4<f32>(-0.4);
     } else {
@@ -41,9 +39,16 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
     } else {
         velocity_x = vec4<f32>(-0.6);
     }
+
+    var pressure = vec4<f32>(0.0);
+    // // if 250 < x < 350 && 150 < y < 250 {
+    // if 250 < location.x && location.x < 350 && 150 < location.y && location.y < 250 {
+    //     pressure = vec4<f32>(-5.0);
+    // }
     textureStore(colorMap, location, color);
     textureStore(velocityXMap, location, velocity_x);
     textureStore(velocityYMap, location, velocity_y);
+    textureStore(pressureMap, location, pressure);
 }
 
 fn wrap_coord(coord: vec2<i32>) -> vec2<i32> {
@@ -164,7 +169,7 @@ fn gradient_subtract(location: vec2<i32>) {
     let pressure_diff_y = (bottom_pressure - top_pressure) * 0.5;
 
     let velocity_x = get_velocity(location, vec2(0)).x;
-    let velocity_y = get_velocity(location, vec2(0)).x;
+    let velocity_y = get_velocity(location, vec2(0)).y;
 
     let final_velocity_x = velocity_x - pressure_diff_x / rho;
     let final_velocity_y = velocity_y - pressure_diff_y / rho;
@@ -187,7 +192,7 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     update_velocity(location);
     
     let divergence = calc_divergence(location);
-    for (var i = 0; i < 100; i++) {
+    for (var i = 0; i < 30; i++) {
         update_pressure(location, divergence);
     }
     gradient_subtract(location);
