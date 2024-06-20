@@ -1,12 +1,13 @@
 @group(0) @binding(0) var colorMap: texture_storage_2d<rgba8unorm, read_write>;
 @group(0) @binding(1) var velocityXMap: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(2) var velocityYMap: texture_storage_2d<r32float, read_write>;
-@group(0) @binding(3) var divergenceMap: texture_storage_2d<rgba8unorm, read_write>;
-@group(0) @binding(4) var pressureMap: texture_storage_2d<rgba8unorm, read_write>;
+@group(0) @binding(3) var pressureMap: texture_storage_2d<r32float, read_write>;
 
 const RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
 const GREEN = vec4<f32>(0.0, 1.0, 0.0, 1.0);
 const BLUE = vec4<f32>(0.0, 0.0, 1.0, 1.0);
+const rho = 0.99;
+const RESOLUTION = vec2<i32>(600, 400);
 
 
 @compute @workgroup_size(8, 8, 1)
@@ -45,24 +46,28 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
     textureStore(velocityYMap, location, velocity_y);
 }
 
+fn wrap_coord(coord: vec2<i32>) -> vec2<i32> {
+    let wrapped_x = (coord.x % RESOLUTION.x + RESOLUTION.x) % RESOLUTION.x;
+    let wrapped_y = (coord.y % RESOLUTION.y + RESOLUTION.y) % RESOLUTION.y;
+    return vec2<i32>(wrapped_x, wrapped_y);
+}
+
 fn get_color(location: vec2<i32>, offset: vec2<i32>) -> vec4<f32> {
-    let value: vec4<f32> = textureLoad(colorMap, location + vec2<i32>(offset.x, offset.y));
+    let value: vec4<f32> = textureLoad(colorMap, wrap_coord(location + offset));
     return value;
 }
 
 fn get_velocity(location: vec2<i32>, offset: vec2<i32>) -> vec2<f32> {
-    let valueX = textureLoad(velocityXMap, location + vec2<i32>(offset.x, offset.y)).x;
-    let valueY = textureLoad(velocityYMap, location + vec2<i32>(offset.x, offset.y)).x;
+    // let valueX = textureLoad(velocityXMap, location + offset).x;
+    // let valueY = textureLoad(velocityYMap, location + offset).x;
+    let valueX = textureLoad(velocityXMap, wrap_coord(location + offset)).x;
+    let valueY = textureLoad(velocityYMap, wrap_coord(location + offset)).x;
     return vec2<f32>(valueX, valueY);
 }
 
-fn get_divergence(location: vec2<i32>, offset_x: i32, offset_y: i32) -> f32 {
-    let value: vec4<f32> = textureLoad(divergenceMap, location + vec2<i32>(offset_x, offset_y));
-    return value.x;
-}
-
-fn get_pressure(location: vec2<i32>, offset_x: i32, offset_y: i32) -> f32 {
-    let value: vec4<f32> = textureLoad(pressureMap, location + vec2<i32>(offset_x, offset_y));
+fn get_pressure(location: vec2<i32>, offset: vec2<i32>) -> f32 {
+    // let value: vec4<f32> = textureLoad(pressureMap, location + offset);
+    let value: vec4<f32> = textureLoad(pressureMap, wrap_coord(location + offset));
     return value.x;
 }
 
@@ -117,20 +122,55 @@ fn sample_color(location: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
 fn update_color(location: vec2<i32>) {
     let velocity = -get_velocity(location, vec2(0));
     let newColor = sample_color(location, velocity);
-    textureStore(colorMap, location, newColor);
+    // textureStore(colorMap, location, newColor);
+    textureStore(colorMap, wrap_coord(location), newColor);
 }
 
 fn update_velocity(location: vec2<i32>) {
     let velocity = -get_velocity(location, vec2(0));
     let newVelocity: vec2<f32> = sample_velocity(location, velocity);
-    textureStore(velocityXMap, location, vec4(newVelocity.x));
-    textureStore(velocityYMap, location, vec4(newVelocity.y));
+    // textureStore(velocityXMap, location, vec4(newVelocity.x));
+    // textureStore(velocityYMap, location, vec4(newVelocity.y));
+    textureStore(velocityXMap, wrap_coord(location), vec4(newVelocity.x));
+    textureStore(velocityYMap, wrap_coord(location), vec4(newVelocity.y));
 }
 
-fn update_divergence(location: vec2<i32>) {
-    // let velocity = -get_velocity(location, vec2(0));
-    // let newDivergence = divergence(velocity);
-    // textureStore(divergenceMap, location, vec4(newDivergence));
+fn calc_divergence(location: vec2<i32>) -> f32 {
+    let left_in = get_velocity(location, vec2(-1,0)).x;
+    let right_in = get_velocity(location, vec2(1,0)).x;
+    let top_in = get_velocity(location, vec2(0,-1)).y;
+    let bottom_in = get_velocity(location, vec2(0,1)).y;
+    let result = left_in - right_in + top_in - bottom_in;
+    return result;
+}
+
+fn update_pressure(location: vec2<i32>, divergence: f32) {
+    let left_in = get_pressure(location, vec2(-1,0));
+    let right_in = get_pressure(location, vec2(1,0));
+    let top_in = get_pressure(location, vec2(0,-1));
+    let bottom_in = get_pressure(location, vec2(0,1));
+
+    let result = 0.25 * (divergence + left_in + right_in + top_in + bottom_in);
+    textureStore(pressureMap, wrap_coord(location), vec4(result));
+}
+
+fn gradient_subtract(location: vec2<i32>) {
+    let left_pressure = get_pressure(location, vec2(-1,0));
+    let right_pressure = get_pressure(location, vec2(1,0));
+    let top_pressure = get_pressure(location, vec2(0,-1));
+    let bottom_pressure = get_pressure(location, vec2(0,1));
+
+    let pressure_diff_x = (right_pressure - left_pressure) * 0.5;
+    let pressure_diff_y = (bottom_pressure - top_pressure) * 0.5;
+
+    let velocity_x = get_velocity(location, vec2(0)).x;
+    let velocity_y = get_velocity(location, vec2(0)).x;
+
+    let final_velocity_x = velocity_x - pressure_diff_x / rho;
+    let final_velocity_y = velocity_y - pressure_diff_y / rho;
+
+    textureStore(velocityXMap, wrap_coord(location), vec4(final_velocity_x));
+    textureStore(velocityYMap, wrap_coord(location), vec4(final_velocity_y));
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -145,4 +185,10 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // }
     update_color(location);
     update_velocity(location);
+    
+    let divergence = calc_divergence(location);
+    for (var i = 0; i < 100; i++) {
+        update_pressure(location, divergence);
+    }
+    gradient_subtract(location);
 }
