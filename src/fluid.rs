@@ -62,20 +62,34 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
     let color_img = images.add(color_img);
 
-    let mut velocity_img = Image::new_fill(
+    let mut velocity_x_img = Image::new_fill(
         Extent3d {
             width: SIZE.0,
             height: SIZE.1,
             depth_or_array_layers: 1,
         },
         TextureDimension::D2,
-        &[0, 0, 0, 255],
-        TextureFormat::Rgba8Unorm,
+        &[0, 0, 0, 0],
+        TextureFormat::R32Float, RenderAssetUsages::RENDER_WORLD,
+    );
+    velocity_x_img.texture_descriptor.usage =
+        TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
+    let velocity_x_img = images.add(velocity_x_img);
+
+    let mut velocity_y_img = Image::new_fill(
+        Extent3d {
+            width: SIZE.0,
+            height: SIZE.1,
+            depth_or_array_layers: 1,
+        },
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::R32Float,
         RenderAssetUsages::RENDER_WORLD,
     );
-    velocity_img.texture_descriptor.usage =
+    velocity_y_img.texture_descriptor.usage =
         TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
-    let velocity_img = images.add(velocity_img);
+    let velocity_y_img = images.add(velocity_y_img);
 
     let mut divergence_img = Image::new_fill(
         Extent3d {
@@ -116,7 +130,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         ..default()
     });
     commands.spawn(Camera2dBundle::default());
-    commands.insert_resource(FluidImage{ color_img, velocity_img, divergence_img, pressure_img });
+    commands.insert_resource(FluidImage{ color_img, velocity_x_img, velocity_y_img, divergence_img, pressure_img });
 }
 
 
@@ -125,11 +139,13 @@ struct FluidImage {
     #[deref]
     #[storage_texture(0, image_format = Rgba8Unorm, access = ReadWrite)]
     color_img: Handle<Image>,
-    #[storage_texture(1, image_format = Rgba8Unorm, access = ReadWrite)]
-    velocity_img: Handle<Image>,
-    #[storage_texture(2, image_format = Rgba8Unorm, access = ReadWrite)]
-    divergence_img: Handle<Image>,
+    #[storage_texture(1, image_format = R32Float, access = ReadWrite)]
+    velocity_x_img: Handle<Image>,
+    #[storage_texture(2, image_format = R32Float, access = ReadWrite)]
+    velocity_y_img: Handle<Image>,
     #[storage_texture(3, image_format = Rgba8Unorm, access = ReadWrite)]
+    divergence_img: Handle<Image>,
+    #[storage_texture(4, image_format = Rgba8Unorm, access = ReadWrite)]
     pressure_img: Handle<Image>,
 }
 
@@ -144,7 +160,8 @@ fn prepare_bind_group(
     render_device: Res<RenderDevice>,
 ) {
     let color_view = gpu_images.get(&fluid_image.color_img).unwrap();
-    let velocity_view = gpu_images.get(&fluid_image.velocity_img).unwrap();
+    let velocity_x_view = gpu_images.get(&fluid_image.velocity_x_img).unwrap();
+    let velocity_y_view = gpu_images.get(&fluid_image.velocity_y_img).unwrap();
     let divergence_view = gpu_images.get(&fluid_image.divergence_img).unwrap();
     let pressure_view = gpu_images.get(&fluid_image.pressure_img).unwrap();
 
@@ -153,9 +170,10 @@ fn prepare_bind_group(
         &pipeline.texture_bind_group_layout,
         &BindGroupEntries::with_indices((
             (0, &color_view.texture_view),
-            (1, &velocity_view.texture_view),
-            (2, &divergence_view.texture_view),
-            (3, &pressure_view.texture_view),
+            (1, &velocity_x_view.texture_view),
+            (2, &velocity_y_view.texture_view),
+            (3, &divergence_view.texture_view),
+            (4, &pressure_view.texture_view),
         )),
     );
     commands.insert_resource(FluidImageBindGroup(bind_group));
