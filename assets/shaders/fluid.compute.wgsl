@@ -27,11 +27,18 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
         color = BLUE;
     }
 
-    var velocity_x = vec4<f32>(0.0);
+    var velocity_x = vec4<f32>(0.1);
     var velocity_y = vec4<f32>(0.0);
-    if i32(invocation_id.y) < 200 && i32(invocation_id.x) < 200 {
-        velocity_x = vec4<f32>(2.0);
-        // velocity_y = vec4<f32>(2.0);
+    if i32(location.x) < 300 {
+        velocity_y = vec4<f32>(-0.4);
+    } else {
+        velocity_y = vec4<f32>(0.4);
+    }
+
+    if i32(location.y) < 200 {
+        velocity_x = vec4<f32>(0.6);
+    } else {
+        velocity_x = vec4<f32>(-0.6);
     }
     textureStore(colorMap, location, color);
     textureStore(velocityXMap, location, velocity_x);
@@ -61,7 +68,7 @@ fn get_pressure(location: vec2<i32>, offset_x: i32, offset_y: i32) -> f32 {
 
 fn sample_velocity(location: vec2<i32>, offset: vec2<f32>) -> vec2<f32> {
     // オフセットの整数部分と小数部分を取得
-    let offset_floor = vec2<i32>(i32(offset.x + 0.5), i32(offset.y + 0.5));
+    let offset_floor = vec2<i32>(floor(offset));
     let offset_fract = offset - vec2<f32>(offset_floor);
 
     // 周囲4つのセルの座標を計算
@@ -85,7 +92,7 @@ fn sample_velocity(location: vec2<i32>, offset: vec2<f32>) -> vec2<f32> {
 
 fn sample_color(location: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
     // オフセットの整数部分と小数部分を取得
-    let offset_floor = vec2<i32>(i32(offset.x + 0.5), i32(offset.y + 0.5));
+    let offset_floor = vec2<i32>(floor(offset));
     let offset_fract = offset - vec2<f32>(offset_floor);
 
     // 周囲4つのセルの座標を計算
@@ -120,18 +127,11 @@ fn update_velocity(location: vec2<i32>) {
     textureStore(velocityYMap, location, vec4(newVelocity.y));
 }
 
-// function updateColorMap() {
-//   const newColorMap = [];
-//   for (let y = 0; y < mapResolution; y++) {
-//     newColorMap.push([]);
-//     for (let x = 0; x < mapResolution; x++) {
-//       const sx = x - velocityMap[y][x][0];
-//       const sy = y - velocityMap[y][x][1];
-// 			newColorMap[y].push(sampleMap(colorMap, sx, sy));
-//     } 
-//   }
-//   colorMap = newColorMap;
-// }
+fn update_divergence(location: vec2<i32>) {
+    // let velocity = -get_velocity(location, vec2(0));
+    // let newDivergence = divergence(velocity);
+    // textureStore(divergenceMap, location, vec4(newDivergence));
+}
 
 @compute @workgroup_size(8, 8, 1)
 fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
