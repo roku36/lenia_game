@@ -164,6 +164,7 @@ fn prepare_bind_group(
 pub struct FluidPipeline {
     texture_bind_group_layout: BindGroupLayout,
     init_pipeline: CachedComputePipelineId,
+    update_pressure_pipeline: CachedComputePipelineId,
     update_pipeline: CachedComputePipelineId,
     // render_pipeline: CachedRenderPipelineId,
 }
@@ -185,6 +186,14 @@ fn from_world(world: &mut World) -> Self {
             shader_defs: vec![],
             entry_point: Cow::from("init"),
         });
+        let update_pressure_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label: None,
+            layout: vec![texture_bind_group_layout.clone()],
+            push_constant_ranges: Vec::new(),
+            shader: shader.clone(),
+            shader_defs: vec![],
+            entry_point: Cow::from("update_pressure"),
+        });
         let update_pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: None,
             layout: vec![texture_bind_group_layout.clone()],
@@ -194,10 +203,10 @@ fn from_world(world: &mut World) -> Self {
             entry_point: Cow::from("update"),
         });
 
-        // 同じ名前の型なので省略
         FluidPipeline {
             texture_bind_group_layout,
             init_pipeline,
+            update_pressure_pipeline,
             update_pipeline,
             // render_pipeline,
         }
@@ -274,9 +283,18 @@ impl render_graph::Node for FluidNode {
                 pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
             FluidState::Update => {
+                let update_pressure_pipeline = pipeline_cache
+                    .get_compute_pipeline(pipeline.update_pressure_pipeline)
+                    .unwrap();
                 let update_pipeline = pipeline_cache
                     .get_compute_pipeline(pipeline.update_pipeline)
                     .unwrap();
+
+                pass.set_pipeline(update_pressure_pipeline);
+                for _ in 0..100{
+                    pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
+                }
+
                 pass.set_pipeline(update_pipeline);
                 pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
