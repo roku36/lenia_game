@@ -70,7 +70,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         },
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::R32Float, RenderAssetUsages::RENDER_WORLD,
+        TextureFormat::R32Float,
+        RenderAssetUsages::RENDER_WORLD,
     );
     velocity_x_img.texture_descriptor.usage =
         TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
@@ -112,6 +113,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             ..default()
         },
         texture: color_img.clone(),
+        // texture: velocity_x_img.clone(),
+        // texture: pressure_img.clone(),
         ..default()
     });
     commands.spawn(Camera2dBundle::default());
@@ -290,13 +293,13 @@ impl render_graph::Node for FluidNode {
                     .get_compute_pipeline(pipeline.update_pipeline)
                     .unwrap();
 
+
+                pass.set_pipeline(update_pipeline);
+                pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
                 pass.set_pipeline(update_pressure_pipeline);
                 for _ in 0..100{
                     pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
                 }
-
-                pass.set_pipeline(update_pipeline);
-                pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
             }
         }
 

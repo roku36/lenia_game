@@ -6,14 +6,14 @@
 const RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
 const GREEN = vec4<f32>(0.0, 1.0, 0.0, 1.0);
 const BLUE = vec4<f32>(0.0, 0.0, 1.0, 1.0);
-// const rho = 0.40;
-const twist = 1.5;
+const rho = 1.00;
+// const rho = 0.99;
 const RESOLUTION = vec2<i32>(600, 400);
 
-const ring_radius = 15;
+const ring_radius = 25;
 const mu = 0.14;     // growth center
 const sigma = 0.014; // growth width
-const rho = 0.5;     // kernel center
+const rho2 = 0.5;     // kernel center
 const omega = 0.15;  // kernel width
 
 
@@ -26,10 +26,21 @@ fn growth(U: f32, m: f32, s: f32) -> f32 {
     return g;
 }
 
+// fn update_lenia(location: vec2<i32>) {
+//     var red_rate = get_color(location, vec2(0)).r;
+//     let current_pressure = get_pressure(location, vec2(0));
+//
+//     let new_pressure = current_pressure * red_rate * 0.8;
+//
+//     textureStore(pressureMap, location, vec4<f32>(new_pressure));
+// }
+
 fn update_lenia(location: vec2<i32>) {
     var x_rate = get_color(location, vec2(0)).r;
     var sum: f32 = 0.0;
     var total: f32 = 0.0;
+
+    var velocity_vec = vec2(0.0);
 
     for (var i = -ring_radius; i <= ring_radius; i++) {
         for (var j = -ring_radius; j <= ring_radius; j++) {
@@ -37,9 +48,11 @@ fn update_lenia(location: vec2<i32>) {
             let i_f = f32(i);
             let j_f = f32(j);
             let r = sqrt((i_f * i_f) + (j_f * j_f)) / f32(ring_radius);
-            let weight = bell(r, rho, omega);
+            let weight = bell(r, rho2, omega);
             sum += cell_val * weight;
             total += weight;
+
+            velocity_vec += vec2(f32(i), f32(j)) * cell_val * weight;
         }
     }
 
@@ -47,14 +60,19 @@ fn update_lenia(location: vec2<i32>) {
     let g = bell(avg, mu, sigma) * 2.0 - 1.0;
     // change kernel depending on current_status
     // let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
-    // let current_velocity= get_velocity(location, vec2(0));
-    let current_pressure = get_pressure(location, vec2(0));
-    // let result = current_velocity + 0.01 * g * x_rate;
-    // let result = current_pressure + 0.01 * g * x_rate;
-    let result = current_pressure + 0.0;
-    textureStore(pressureMap, location, vec4<f32>(result));
-    // textureStore(velocityXMap, location, vec4<f32>(result.x));
-    // textureStore(velocityYMap, location, vec4<f32>(result.y));
+    let current_velocity= get_velocity(location, vec2(0));
+    var result = current_velocity + velocity_vec * x_rate * 10.0;
+    // var result = current_velocity - velocity_vec * 10.0;
+    result = normalize(result);
+    // let current_pressure = get_pressure(location, vec2(0));
+    // let result = current_velocity - 0.1 * g * x_rate;
+    // let result = current_pressure - 0.1 * g * x_rate;
+    // let result = current_pressure + 0.3 * g;
+
+    // let result = saturate(current_pressure + 0.3 * g);
+    // textureStore(pressureMap, location, vec4<f32>(result));
+    textureStore(velocityXMap, location, vec4<f32>(result.x));
+    textureStore(velocityYMap, location, vec4<f32>(result.y));
 }
 
 
@@ -70,28 +88,28 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
     if colorArea < 100 {
         color = RED;
     } else if colorArea < 200 {
-        color = GREEN;
+        // color = GREEN;
     } else {
-        color = BLUE;
+        // color = BLUE;
     }
 
-    // if i32(location.x) < 300 {
-    //     velocity_y = vec4<f32>(-0.2);
-    // } else {
-    //     velocity_y = vec4<f32>(0.2);
-    // }
-    //
-    // if i32(location.y) < 200 {
-    //     velocity_x = vec4<f32>(0.3);
-    // } else {
-    //     velocity_x = vec4<f32>(-0.3);
-    // }
+    if i32(location.x) < 300 {
+        velocity_y = vec4<f32>(-0.2);
+    } else {
+        velocity_y = vec4<f32>(0.2);
+    }
+
+    if i32(location.y) < 200 {
+        velocity_x = vec4<f32>(0.3);
+    } else {
+        velocity_x = vec4<f32>(-0.3);
+    }
 
     var pressure = vec4<f32>(0.0);
     // // if 250 < x < 350 && 150 < y < 250 {
-    if 250 < location.x && location.x < 350 && 150 < location.y && location.y < 250 {
-        pressure = vec4<f32>(-50.0);
-    }
+    // if 250 < location.x && location.x < 350 && 150 < location.y && location.y < 250 {
+    //     pressure = vec4<f32>(-50.0);
+    // }
     textureStore(colorMap, location, color);
     textureStore(velocityXMap, location, velocity_x);
     textureStore(velocityYMap, location, velocity_y);
@@ -222,14 +240,17 @@ fn gradient_subtract(location: vec2<i32>) {
     let pressure_diff_x = (right_pressure - left_pressure) * 0.5;
     let pressure_diff_y = (bottom_pressure - top_pressure) * 0.5;
 
-    let velocity_x = get_velocity(location, vec2(0)).x;
-    let velocity_y = get_velocity(location, vec2(0)).y;
+    let velocity = get_velocity(location, vec2(0));
 
-    let final_velocity_x = velocity_x - pressure_diff_x / twist; // rho
-    let final_velocity_y = velocity_y - pressure_diff_y / twist;
+    let final_velocity_x = velocity.x - pressure_diff_x / rho;
+    let final_velocity_y = velocity.y - pressure_diff_y / rho;
 
-    textureStore(velocityXMap, wrap_coord(location), vec4(final_velocity_x));
-    textureStore(velocityYMap, wrap_coord(location), vec4(final_velocity_y));
+    let final_velocity = normalize(vec2<f32>(final_velocity_x, final_velocity_y));
+    // let final_velocity = vec2<f32>(final_velocity_x, final_velocity_y);
+
+
+    textureStore(velocityXMap, wrap_coord(location), vec4(final_velocity.x));
+    textureStore(velocityYMap, wrap_coord(location), vec4(final_velocity.y));
 }
 
 @compute @workgroup_size(8, 8, 1)
@@ -247,5 +268,8 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     
     // update_pressure(location, divergence);
     gradient_subtract(location);
-    // update_lenia(location);
+    // if 250 < location.x && location.x < 350 && 150 < location.y && location.y < 250 {
+    //     textureStore(pressureMap, location, vec4(1.0));
+    // }
+    update_lenia(location);
 }
