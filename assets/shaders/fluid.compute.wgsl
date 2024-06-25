@@ -132,7 +132,8 @@ fn get_pressure(location: vec2<i32>) -> f32 {
 fn sample_velocity(pos: vec2<f32>) -> vec2<f32> {
     // オフセットの整数部分と小数部分を取得
     let pos00 = vec2<i32>(floor(pos));
-    let pos_fract = pos - vec2<f32>(pos00);
+    // let pos00 = vec2<i32>(floor(pos + vec2<f32>(0.5)));
+    let pos_fract = fract(pos);
 
     // 周囲4つのセルの値を取得
     let value00 = get_velocity(pos00 + vec2<i32>(0, 0));
@@ -153,7 +154,8 @@ fn sample_velocity(pos: vec2<f32>) -> vec2<f32> {
 fn sample_color(pos: vec2<f32>) -> vec4<f32> {
     // オフセットの整数部分と小数部分を取得
     let pos00 = vec2<i32>(floor(pos));
-    let pos_fract = pos - vec2<f32>(pos00);
+    // let pos00 = vec2<i32>(floor(pos + vec2<f32>(0.5)));
+    let pos_fract = fract(pos);
 
     // 周囲4つのセルの値を取得
     let value00 = get_color(pos00 + vec2<i32>(0, 0));
@@ -229,7 +231,6 @@ fn gradient_subtract(location: vec2<i32>) {
 
     // let final_velocity = normalize(vec2<f32>(final_velocity_x, final_velocity_y));
     let final_velocity = vec2<f32>(final_velocity_x, final_velocity_y);
-
 
     textureStore(velocityXMap, wrap_coord(location), vec4(final_velocity.x));
     textureStore(velocityYMap, wrap_coord(location), vec4(final_velocity.y));
