@@ -5,6 +5,7 @@ use bevy::{
 mod ui;
 mod lenia;
 mod fluid;
+mod flow_lenia;
 
 use crate::ui::fps::FpsPlugin;
 
@@ -26,6 +27,7 @@ fn main() {
                 FpsPlugin,
                 // lenia::LeniaComputePlugin,
                 fluid::FluidComputePlugin,
+                // flow_lenia::FlowLeniaComputePlugin,
         ))
         .run();
 }
