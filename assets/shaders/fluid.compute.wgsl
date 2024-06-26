@@ -26,47 +26,6 @@ fn growth(U: f32, m: f32, s: f32) -> f32 {
     return g;
 }
 
-fn update_lenia(location: vec2<i32>) {
-    var x_rate = get_color(location + vec2(0)).r;
-    var sum: f32 = 0.0;
-    var total: f32 = 0.0;
-
-    var velocity_vec = vec2(0.0);
-
-    for (var i = -ring_radius; i <= ring_radius; i++) {
-        for (var j = -ring_radius; j <= ring_radius; j++) {
-            let cell_val = get_color(location + vec2(0)).r;
-            let i_f = f32(i);
-            let j_f = f32(j);
-            let r = sqrt((i_f * i_f) + (j_f * j_f)) / f32(ring_radius);
-            let weight = bell(r, rho2, omega);
-            sum += cell_val * weight;
-            total += weight;
-
-            velocity_vec += vec2(f32(i), f32(j)) * cell_val * weight;
-        }
-    }
-
-    let avg = sum / total;
-    let g = bell(avg, mu, sigma) * 2.0 - 1.0;
-    // change kernel depending on current_status
-    // let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
-    let current_velocity= get_velocity(location + vec2(0));
-    var result = current_velocity + velocity_vec * x_rate * 10.0;
-    // var result = current_velocity - velocity_vec * 10.0;
-    result = normalize(result);
-    // let current_pressure = get_pressure(location, vec2(0));
-    // let result = current_velocity - 0.1 * g * x_rate;
-    // let result = current_pressure - 0.1 * g * x_rate;
-    // let result = current_pressure + 0.3 * g;
-
-    // let result = saturate(current_pressure + 0.3 * g);
-    // textureStore(pressureMap, location, vec4<f32>(result));
-    textureStore(velocityXMap, location, vec4<f32>(result.x));
-    textureStore(velocityYMap, location, vec4<f32>(result.y));
-}
-
-
 @compute @workgroup_size(8, 8, 1)
 fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_workgroups) num_workgroups: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
@@ -151,8 +110,12 @@ fn sample_velocity(pos: vec2<f32>) -> vec2<f32> {
     return result;
 }
 
-fn sample_color(pos: vec2<f32>) -> vec4<f32> {
-    // オフセットの整数部分と小数部分を取得
+fn update_color(location: vec2<i32>) {
+    let velocity = get_velocity(location + vec2(0));
+
+    let pos = vec2<f32>(location) - velocity;
+
+        // オフセットの整数部分と小数部分を取得
     let pos00 = vec2<i32>(floor(pos));
     // let pos00 = vec2<i32>(floor(pos + vec2<f32>(0.5)));
     let pos_fract = fract(pos);
@@ -163,19 +126,27 @@ fn sample_color(pos: vec2<f32>) -> vec4<f32> {
     let value01 = get_color(pos00 + vec2<i32>(0, 1));
     let value11 = get_color(pos00 + vec2<i32>(1, 1));
 
+    // 各セルに分配する比率を計算
+    let weight00 = (1.0 - pos_fract.x) * (1.0 - pos_fract.y);
+    let weight10 = pos_fract.x * (1.0 - pos_fract.y);
+    let weight01 = (1.0 - pos_fract.x) * pos_fract.y;
+    let weight11 = pos_fract.x * pos_fract.y;
+
     // 水平方向の補間
     let value0 = mix(value00, value10, pos_fract.x);
     let value1 = mix(value01, value11, pos_fract.x);
 
     // 垂直方向の補間
-    let result = mix(value0, value1, pos_fract.y);
+    let newColor = mix(value0, value1, pos_fract.y);
 
-    return result;
-}
 
-fn update_color(location: vec2<i32>) {
-    let velocity = -get_velocity(location + vec2(0));
-    let newColor = sample_color(vec2<f32>(location) + velocity);
+    set_color(pos00, vec2<i32>(0, 0), flow00);
+    set_color(pos00, vec2<i32>(1, 0), flow10);
+    set_color(pos00, vec2<i32>(0, 1), flow01);
+    set_color(pos00, vec2<i32>(1, 1), flow11);
+    set_color(location, vec2<i32>(0, 0), value * alpha);
+
+
     // textureStore(colorMap, location, newColor);
     textureStore(colorMap, wrap_coord(location), newColor);
 }
@@ -254,5 +225,4 @@ fn update(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     // if 250 < location.x && location.x < 350 && 150 < location.y && location.y < 250 {
     //     textureStore(pressureMap, location, vec4(1.0));
     // }
-    // update_lenia(location);
 }

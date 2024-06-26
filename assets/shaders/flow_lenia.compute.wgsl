@@ -88,22 +88,19 @@ fn compute_flow(location: vec2<i32>) -> vec2<f32> {
     // use sobel filter to compute gradient
     var flow = vec2<f32>(0.0);
 
-    // flow.x = get_growth(location, vec2<i32>(-1, -1))
-    // + 2.0 * get_growth(location, vec2<i32>(-1, 0)) 
-    // + get_growth(location, vec2<i32>(-1, 1))
-    // - get_growth(location, vec2<i32>(1, -1))
-    // - 2.0 * get_growth(location, vec2<i32>(1, 0))
-    // - get_growth(location, vec2<i32>(1, 1));
-    //
-    // flow.y = get_growth(location, vec2<i32>(-1, -1))
-    // + 2.0 * get_growth(location, vec2<i32>(0, -1)) 
-    // + get_growth(location, vec2<i32>(1, -1))
-    // - get_growth(location, vec2<i32>(-1, 1))
-    // - 2.0 * get_growth(location, vec2<i32>(0, 1))
-    // - get_growth(location, vec2<i32>(1, 1));
+    flow.x = get_growth(location, vec2<i32>(-1, -1))
+    + 2.0 * get_growth(location, vec2<i32>(-1, 0)) 
+    + get_growth(location, vec2<i32>(-1, 1))
+    - get_growth(location, vec2<i32>(1, -1))
+    - 2.0 * get_growth(location, vec2<i32>(1, 0))
+    - get_growth(location, vec2<i32>(1, 1));
 
-    flow.x = get_growth(location, vec2<i32>(-1, 0)) - get_growth(location, vec2<i32>(1, 0));
-    flow.y = get_growth(location, vec2<i32>(0, -1)) - get_growth(location, vec2<i32>(0, 1));
+    flow.y = get_growth(location, vec2<i32>(-1, -1))
+    + 2.0 * get_growth(location, vec2<i32>(0, -1)) 
+    + get_growth(location, vec2<i32>(1, -1))
+    - get_growth(location, vec2<i32>(-1, 1))
+    - 2.0 * get_growth(location, vec2<i32>(0, 1))
+    - get_growth(location, vec2<i32>(1, 1));
 
     flow = normalize(flow);
 
