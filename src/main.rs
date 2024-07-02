@@ -25,9 +25,9 @@ fn main() {
                     ..default()
                 }),
                 FpsPlugin,
-                // lenia::LeniaComputePlugin,
+                lenia::LeniaComputePlugin,
                 // fluid::FluidComputePlugin,
-                flow_lenia::FlowLeniaComputePlugin,
+                // flow_lenia::FlowLeniaComputePlugin,
         ))
         .run();
 }

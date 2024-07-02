@@ -148,4 +148,3 @@ fn apply_flow(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     set_color(location, vec2<i32>(0, 0), value * alpha);
 }
 
-

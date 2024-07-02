@@ -1,10 +1,17 @@
 @group(0) @binding(0) var texture: texture_storage_2d<rgba8unorm, read_write>;
 
+const RESOLUTION = vec2<i32>(600, 400);
 const ring_radius = 15;
 const mu = 0.14;     // growth center
 const sigma = 0.014; // growth width
 const rho = 0.5;     // kernel center
 const omega = 0.15;  // kernel width
+
+fn wrap_coord(coord: vec2<i32>) -> vec2<i32> {
+    let wrapped_x = (coord.x % RESOLUTION.x + RESOLUTION.x) % RESOLUTION.x;
+    let wrapped_y = (coord.y % RESOLUTION.y + RESOLUTION.y) % RESOLUTION.y;
+    return vec2<i32>(wrapped_x, wrapped_y);
+}
 
 fn hash(p: vec2<f32>) -> f32 {
     let p2 = dot(p, vec2<f32>(127.1, 311.7));
@@ -32,19 +39,19 @@ fn init(@builtin(global_invocation_id) invocation_id: vec3<u32>, @builtin(num_wo
     textureStore(texture, location, color);
 }
 
-fn get_value(location: vec2<i32>, offset_x: i32, offset_y: i32) -> f32 {
-    let value: vec4<f32> = textureLoad(texture, location + vec2<i32>(offset_x, offset_y));
+fn get_value(location: vec2<i32>, offset: vec2<i32>) -> f32 {
+    let value: vec4<f32> = textureLoad(texture, wrap_coord(location + offset));
     return value.x;
 }
 
 fn compute_new_state(location: vec2<i32>) -> f32 {
-    var current_status = get_value(location, 0, 0);
+    var current_status = get_value(location, vec2<i32>(0, 0));
     var sum: f32 = 0.0;
     var total: f32 = 0.0;
 
     for (var i = -ring_radius; i <= ring_radius; i++) {
         for (var j = -ring_radius; j <= ring_radius; j++) {
-            let cell_val = get_value(location, i, j);
+            let cell_val = get_value(location, vec2<i32>(i, j));
             let i_f = f32(i);
             let j_f = f32(j);
             let r = sqrt((i_f * i_f) + (j_f * j_f)) / f32(ring_radius);
@@ -55,9 +62,9 @@ fn compute_new_state(location: vec2<i32>) -> f32 {
     }
 
     let avg = sum / total;
-    let g = bell(avg, mu, sigma) * 2.0 - 1.0;
+    // let g = bell(avg, mu, sigma) * 2.0 - 1.0;
     // change kernel depending on current_status
-    // let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
+    let g = growth(avg * (1.0 + (current_status - 0.5)*0.2), mu, sigma);
     let result = saturate(current_status + 0.1 * g);
     return result;
 }
